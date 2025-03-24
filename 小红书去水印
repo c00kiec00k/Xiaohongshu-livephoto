@@ -7,6 +7,10 @@
 
 // 前向声明小红书的类
 @interface XHSAppDelegate : UIResponder <UIApplicationDelegate>
+// 添加新方法声明
+- (void)setupFloatingButton;
+- (void)setupMultiTapGesture;
+- (void)handleMultiTap:(UITapGestureRecognizer *)gesture;
 @end
 
 @interface XYTabBar : UIView
@@ -125,6 +129,7 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
+
 // ControlPanel 实现
 @implementation ControlPanel
 
@@ -211,6 +216,7 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
+
 // Hook AppDelegate
 %hook XHSAppDelegate
 
