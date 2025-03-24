@@ -338,4 +338,3 @@ static UIWindow* getKeyWindow() {
         NSLog(@"[XhsPlus] Tweak已加载");
     }
 }
-
