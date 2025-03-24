@@ -4,12 +4,14 @@
  */
 
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
+#import <substrate.h>
 
 // 前向声明小红书的类
 @interface XHSAppDelegate : UIResponder <UIApplicationDelegate>
-// 添加新方法声明
-- (void)setupFloatingButton;
-- (void)setupMultiTapGesture;
+@end
+
+@interface XHSAppDelegate (XhsPlus)
 - (void)handleMultiTap:(UITapGestureRecognizer *)gesture;
 @end
 
@@ -54,7 +56,6 @@ static UIWindow* getKeyWindow() {
     }
     return keyWindow;
 }
-
 // FloatingButton 实现
 @implementation FloatingButton
 
@@ -216,41 +217,34 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
-
 // Hook AppDelegate
 %hook XHSAppDelegate
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    BOOL result = %orig;
+static BOOL (*_orig_applicationDidFinishLaunching)(XHSAppDelegate*, SEL, UIApplication*, NSDictionary*);
+static BOOL _new_applicationDidFinishLaunching(XHSAppDelegate* self, SEL _cmd, UIApplication* application, NSDictionary* launchOptions) {
+    BOOL result = _orig_applicationDidFinishLaunching(self, _cmd, application, launchOptions);
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        [self setupFloatingButton];
-        [self setupMultiTapGesture];
+        // 创建悬浮按钮
+        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+        
+        floatingButton = [[FloatingButton alloc] initWithFrame:CGRectMake(
+            (screenWidth - 40) / 2,
+            (screenHeight - 40) / 2,
+            40,
+            40
+        )];
+        [getKeyWindow() addSubview:floatingButton];
+        
+        // 添加三指双击手势
+        UITapGestureRecognizer *multiTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMultiTap:)];
+        multiTapGesture.numberOfTouchesRequired = 3;
+        multiTapGesture.numberOfTapsRequired = 2;
+        [getKeyWindow() addGestureRecognizer:multiTapGesture];
     });
     
     return result;
-}
-
-%new
-- (void)setupFloatingButton {
-    CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-    CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-    
-    floatingButton = [[FloatingButton alloc] initWithFrame:CGRectMake(
-        (screenWidth - 40) / 2,
-        (screenHeight - 40) / 2,
-        40,
-        40
-    )];
-    [getKeyWindow() addSubview:floatingButton];
-}
-
-%new
-- (void)setupMultiTapGesture {
-    UITapGestureRecognizer *multiTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMultiTap:)];
-    multiTapGesture.numberOfTouchesRequired = 3;
-    multiTapGesture.numberOfTapsRequired = 2;
-    [getKeyWindow() addGestureRecognizer:multiTapGesture];
 }
 
 %new
@@ -259,6 +253,15 @@ static UIWindow* getKeyWindow() {
     [UIView animateWithDuration:0.3 animations:^{
         floatingButton.alpha = isButtonVisible ? 1.0 : 0.0;
     }];
+}
+
++ (void)load {
+    MSHookMessageEx(
+        objc_getClass("XHSAppDelegate"),
+        @selector(application:didFinishLaunchingWithOptions:),
+        (IMP)&_new_applicationDidFinishLaunching,
+        (IMP*)&_orig_applicationDidFinishLaunching
+    );
 }
 
 %end
@@ -320,3 +323,11 @@ static UIWindow* getKeyWindow() {
 }
 
 %end
+
+// 构造函数
+%ctor {
+    @autoreleasepool {
+        // 在这里可以进行一些初始化操作
+        NSLog(@"[XhsPlus] Tweak已加载");
+    }
+}
