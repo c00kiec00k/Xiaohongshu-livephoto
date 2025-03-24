@@ -1,372 +1,141 @@
-/* 
- * Tweak Name: XhsPlus
- * Target App: 小红书
- * Device: iPhone 12
- * iOS Version: 16.5
- * Injection: Trollfools
- */
+static FloatingButton *floatingButton = nil;
+static BOOL isFloatingButtonVisible = YES;
 
-#import <UIKit/UIKit.h>
+// Hook UIResponder 以处理摇动手势
+%hook UIResponder 
 
-// 前向声明
-@interface XHSAppDelegate : UIResponder <UIApplicationDelegate>
-- (void)setupFloatingButton;
-@end
-
-@interface XYTabBar : UIView
-@property (nonatomic, strong) NSArray *subviews;
-@end
-
-@interface XYPHMediaSaveConfig : NSObject
-- (void)setDisableWatermark:(_Bool)arg1;
-- (void)setDisableSave:(_Bool)arg1;
-@end
-
-// 自定义类声明
-@interface FloatingButton : UIButton
-@property (nonatomic, strong) UIWindow *buttonWindow;
-- (void)setBase64Image:(NSString *)base64String;
-@end
-
-@interface ControlPanel : UIView
-- (void)setupUI;
-@end
-
-// 全局变量
-static FloatingButton *floatingButton;
-static ControlPanel *controlPanel;
-static BOOL isButtonVisible = YES;
-
-// 获取主窗口
-static UIWindow* getMainWindow() {
-    UIWindow *mainWindow = nil;
-    if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *scene in UIApplication.sharedApplication.connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                UIWindowScene *windowScene = (UIWindowScene *)scene;
-                for (UIWindow *window in windowScene.windows) {
-                    if (window.windowLevel == UIWindowLevelNormal) {
-                        mainWindow = window;
-                        break;
-                    }
-                }
-                break;
+- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event {
+    %orig;
+    if (motion == UIEventSubtypeMotionShake) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (floatingButton) {
+                isFloatingButtonVisible = !isFloatingButtonVisible;
+                floatingButton.hidden = !isFloatingButtonVisible;
             }
-        }
-    }
-    if (!mainWindow) {
-        mainWindow = [[UIApplication sharedApplication] windows].firstObject;
-    }
-    return mainWindow;
-}
-
-// 创建独立窗口
-static UIWindow* createWindowWithLevel(UIWindowLevel level) {
-    UIWindow *window = nil;
-    if (@available(iOS 13.0, *)) {
-        UIWindowScene *scene = (UIWindowScene *)[[UIApplication sharedApplication].connectedScenes allObjects].firstObject;
-        window = [[UIWindow alloc] initWithWindowScene:scene];
-    } else {
-        window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    }
-    window.windowLevel = level;
-    return window;
-}
-// FloatingButton 实现
-@implementation FloatingButton
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        // 基本设置
-        self.backgroundColor = [UIColor colorWithRed:0.4 green:0.8 blue:1.0 alpha:0.8];
-        self.layer.cornerRadius = frame.size.width / 2;
-        self.layer.masksToBounds = YES;
-        [self setTitle:@"logo" forState:UIControlStateNormal];
-        self.titleLabel.font = [UIFont systemFontOfSize:12];
-        
-        // 创建独立窗口
-        self.buttonWindow = createWindowWithLevel(UIWindowLevelStatusBar + 1);
-        self.buttonWindow.backgroundColor = [UIColor clearColor];
-        self.buttonWindow.userInteractionEnabled = YES;
-        [self.buttonWindow addSubview:self];
-        self.buttonWindow.hidden = NO;
-        
-        // 添加手势
-        UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
-        [self addGestureRecognizer:panGesture];
-        
-        UILongPressGestureRecognizer *longPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
-        longPressGesture.minimumPressDuration = 0.5;
-        [self addGestureRecognizer:longPressGesture];
-    }
-    return self;
-}
-
-- (void)handlePan:(UIPanGestureRecognizer *)gesture {
-    CGPoint translation = [gesture translationInView:self];
-    CGPoint newCenter = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
-    
-    // 限制按钮在屏幕范围内
-    CGFloat minX = self.frame.size.width / 2;
-    CGFloat maxX = self.buttonWindow.frame.size.width - self.frame.size.width / 2;
-    CGFloat minY = self.frame.size.width / 2;
-    CGFloat maxY = self.buttonWindow.frame.size.height - self.frame.size.height / 2;
-    
-    newCenter.x = MAX(minX, MIN(newCenter.x, maxX));
-    newCenter.y = MAX(minY, MIN(newCenter.y, maxY));
-    
-    self.center = newCenter;
-    [gesture setTranslation:CGPointZero inView:self];
-}
-
-- (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
-    if (gesture.state == UIGestureRecognizerStateBegan) {
-        [self showControlPanel];
+        });
     }
 }
 
-- (void)showControlPanel {
-    if (!controlPanel) {
-        CGFloat panelWidth = [UIScreen mainScreen].bounds.size.width * 0.8;
-        CGFloat panelHeight = [UIScreen mainScreen].bounds.size.height * 0.5; // 增加高度以容纳新增的标签
-        CGRect frame = CGRectMake(([UIScreen mainScreen].bounds.size.width - panelWidth) / 2,
-                                 ([UIScreen mainScreen].bounds.size.height - panelHeight) / 2,
-                                 panelWidth,
-                                 panelHeight);
-        controlPanel = [[ControlPanel alloc] initWithFrame:frame];
-    }
-    
-    UIWindow *mainWindow = getMainWindow();
-    if (!controlPanel.superview && mainWindow) {
-        controlPanel.alpha = 0;
-        controlPanel.transform = CGAffineTransformMakeScale(0.1, 0.1);
-        [mainWindow addSubview:controlPanel];
-        
-        [UIView animateWithDuration:0.3 animations:^{
-            controlPanel.alpha = 1;
-            controlPanel.transform = CGAffineTransformIdentity;
-        }];
-    }
-}
+%end
 
-- (void)setBase64Image:(NSString *)base64String {
-    if (base64String) {
-        NSData *imageData = [[NSData alloc] initWithBase64EncodedString:base64String options:NSDataBase64DecodingIgnoreUnknownCharacters];
-        if (imageData) {
-            UIImage *image = [UIImage imageWithData:imageData];
-            if (image) {
-                [self setImage:image forState:UIControlStateNormal];
-                [self setTitle:@"" forState:UIControlStateNormal];
-            }
-        }
-    }
-}
-
-- (void)setHidden:(BOOL)hidden {
-    [super setHidden:hidden];
-    self.buttonWindow.hidden = hidden;
-}
-
-- (void)dealloc {
-    self.buttonWindow = nil;
-}
-
-@end
-@implementation ControlPanel
-
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (self) {
-        // 基本设置
-        self.backgroundColor = [UIColor colorWithWhite:0 alpha:0.8];
-        self.layer.cornerRadius = 10;
-        
-        // 创建关闭按钮
-        UIButton *closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
-        closeButton.frame = CGRectMake(frame.size.width - 40, 10, 30, 30);
-        [closeButton setTitle:@"×" forState:UIControlStateNormal];
-        [closeButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        closeButton.titleLabel.font = [UIFont systemFontOfSize:24];
-        [closeButton addTarget:self action:@selector(dismiss) forControlEvents:UIControlEventTouchUpInside];
-        [self addSubview:closeButton];
-        
-        // 创建标题标签
-        UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 15, frame.size.width - 60, 30)];
-        titleLabel.text = @"控制面板";
-        titleLabel.textColor = [UIColor whiteColor];
-        titleLabel.textAlignment = NSTextAlignmentCenter;
-        titleLabel.font = [UIFont boldSystemFontOfSize:18];
-        [self addSubview:titleLabel];
-        
-        // 创建分割线
-        UIView *separator = [[UIView alloc] initWithFrame:CGRectMake(0, 55, frame.size.width, 1)];
-        separator.backgroundColor = [UIColor colorWithWhite:1 alpha:0.3];
-        [self addSubview:separator];
-        
-        // 创建功能按钮和标签
-        [self setupControlButtons];
-        
-        // 添加点击手势（点击外部关闭）
-        UITapGestureRecognizer *tapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
-        tapGesture.delegate = self;
-        [self addGestureRecognizer:tapGesture];
-    }
-    return self;
-}
-
-- (void)setupControlButtons {
-    NSArray *buttonTitles = @[@"保存图片", @"复制链接", @"一键去水印"];
-    NSArray *labelTexts = @[
-        @"已保存图片数: 0",
-        @"已复制链接数: 0",
-        @"已去水印数: 0"
-    ];
-    
-    CGFloat buttonWidth = self.frame.size.width - 40;
-    CGFloat buttonHeight = 40;
-    CGFloat labelHeight = 20;
-    CGFloat startY = 70;
-    CGFloat spacing = 20;
-    
-    for (NSInteger i = 0; i < buttonTitles.count; i++) {
-        CGFloat yPos = startY + (buttonHeight + labelHeight + spacing) * i;
-        
-        // 创建按钮
-        UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-        button.frame = CGRectMake(20, yPos, buttonWidth, buttonHeight);
-        button.backgroundColor = [UIColor colorWithRed:0.4 green:0.8 blue:1.0 alpha:0.8];
-        button.layer.cornerRadius = 8;
-        [button setTitle:buttonTitles[i] forState:UIControlStateNormal];
-        [button setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-        button.tag = i;
-        [button addTarget:self action:@selector(buttonTapped:) forControlEvents:UIControlEventTouchUpInside];
-        [self addSubview:button];
-        
-        // 创建标签
-        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(20, yPos + buttonHeight + 5, buttonWidth, labelHeight)];
-        label.text = labelTexts[i];
-        label.textColor = [UIColor whiteColor];
-        label.font = [UIFont systemFontOfSize:14];
-        label.tag = 100 + i; // 用于后续更新
-        [self addSubview:label];
-    }
-}
-
-- (void)buttonTapped:(UIButton *)sender {
-    UILabel *correspondingLabel = [self viewWithTag:100 + sender.tag];
-    NSInteger currentCount = [self extractNumberFromLabel:correspondingLabel.text];
-    
-    switch (sender.tag) {
-        case 0: // 保存图片
-            correspondingLabel.text = [NSString stringWithFormat:@"已保存图片数: %ld", (long)(currentCount + 1)];
-            break;
-        case 1: // 复制链接
-            correspondingLabel.text = [NSString stringWithFormat:@"已复制链接数: %ld", (long)(currentCount + 1)];
-            break;
-        case 2: // 一键去水印
-            correspondingLabel.text = [NSString stringWithFormat:@"已去水印数: %ld", (long)(currentCount + 1)];
-            break;
-    }
-}
-
-- (NSInteger)extractNumberFromLabel:(NSString *)text {
-    NSArray *components = [text componentsSeparatedByString:@": "];
-    if (components.count > 1) {
-        return [components.lastObject integerValue];
-    }
-    return 0;
-}
-
-- (void)handleTap:(UITapGestureRecognizer *)gesture {
-    CGPoint location = [gesture locationInView:self];
-    if (!CGRectContainsPoint(self.bounds, location)) {
-        [self dismiss];
-    }
-}
-
-- (void)dismiss {
-    [UIView animateWithDuration:0.3 animations:^{
-        self.alpha = 0;
-        self.transform = CGAffineTransformMakeScale(0.1, 0.1);
-    } completion:^(BOOL finished) {
-        [self removeFromSuperview];
-        self.transform = CGAffineTransformIdentity;
-    }];
-}
-
-- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch {
-    return [touch.view isEqual:self];
-}
-
-@end
-// Hook 实现部分
+// Hook XHSAppDelegate 以添加悬浮按钮
 %hook XHSAppDelegate
 
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    BOOL result = %orig;
-    
-    // 创建并设置悬浮按钮
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+%new
+- (void)setupFloatingButton {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindow *window = getKeyWindow();
+        if (!window) return;
+        
+        // 创建悬浮按钮
         if (!floatingButton) {
             CGFloat buttonSize = 40;
-            CGRect screenBounds = [UIScreen mainScreen].bounds;
-            CGRect buttonFrame = CGRectMake((screenBounds.size.width - buttonSize) / 2,
-                                          (screenBounds.size.height - buttonSize) / 2,
-                                          buttonSize,
-                                          buttonSize);
+            CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+            CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
             
-            floatingButton = [[FloatingButton alloc] initWithFrame:buttonFrame];
-            isButtonVisible = YES;
+            floatingButton = [[FloatingButton alloc] initWithFrame:CGRectMake(
+                (screenWidth - buttonSize) / 2,
+                (screenHeight - buttonSize) / 2,
+                buttonSize,
+                buttonSize
+            )];
             
-            // 注册摇动事件通知
-            [[NSNotificationCenter defaultCenter] addObserver:self
-                                                   selector:@selector(deviceDidShake:)
-                                                       name:@"UIEventSubtypeMotionShake"
-                                                     object:nil];
+            // 设置默认显示状态
+            floatingButton.hidden = !isFloatingButtonVisible;
+            
+            // 添加到窗口并确保在最上层
+            [window addSubview:floatingButton];
+            [window bringSubviewToFront:floatingButton];
         }
     });
-    
-    return result;
 }
 
-%new
-- (void)deviceDidShake:(NSNotification *)notification {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        isButtonVisible = !isButtonVisible;
-        [floatingButton setHidden:!isButtonVisible];
+- (void)applicationDidBecomeActive:(id)arg1 {
+    %orig;
+    // 延迟2秒创建悬浮按钮,确保窗口完全初始化
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self setupFloatingButton];
     });
 }
 
-- (void)motionEnded:(UIEventSubtype)motion withEvent:(UIEvent *)event {
-    if (motion == UIEventSubtypeMotionShake) {
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"UIEventSubtypeMotionShake" object:nil];
-    }
-    %orig;
-}
-
 %end
 
-// 添加摇动检测支持
-%hook UIWindow
+// Hook XYTabBar 以实现底栏修改
+%hook XYTabBar
 
-- (void)motionEnded:(UIEventSubtype)motion withEvent:(UIEvent *)event {
-    if (motion == UIEventSubtypeMotionShake) {
-        [[NSNotificationCenter defaultCenter] postNotificationName:@"UIEventSubtypeMotionShake" object:nil];
-    }
+- (void)layoutSubviews {
     %orig;
-}
-
-%end
-
-// 构造函数
-%ctor {
-    // 初始化全局变量
-    floatingButton = nil;
-    controlPanel = nil;
-    isButtonVisible = YES;
     
-    // 注册需要hook的类
-    %init;
+    if (self.subviews.count >= 3) {
+        BOOL removeShoppingTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_shopping"];
+        BOOL removePostTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_post"];
+        
+        NSMutableArray *viewsToRemove = [NSMutableArray array];
+        
+        if (removeShoppingTab) {
+            UIView *shoppingTab = [self.subviews objectAtIndex:1];
+            if (shoppingTab) [viewsToRemove addObject:shoppingTab];
+        }
+        
+        if (removePostTab) {
+            UIView *postTab = [self.subviews objectAtIndex:removeShoppingTab ? 1 : 2];
+            if (postTab) [viewsToRemove addObject:postTab];
+        }
+        
+        // 移除选中的标签
+        for (UIView *view in viewsToRemove) {
+            [view removeFromSuperview];
+        }
+        
+        // 重新布局剩余标签
+        CGFloat tabWidth = CGRectGetWidth(self.bounds) / self.subviews.count;
+        CGFloat xPosition = 0;
+        
+        for (UIView *subview in self.subviews) {
+            CGRect frame = subview.frame;
+            frame.origin.x = xPosition;
+            frame.size.width = tabWidth;
+            subview.frame = frame;
+            xPosition += tabWidth;
+        }
+    }
 }
 
+%end
+
+// Hook XYPHMediaSaveConfig 以实现保存相关功能
+%hook XYPHMediaSaveConfig
+
+- (void)setDisableWatermark:(_Bool)arg1 {
+    BOOL removeWatermark = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_save_watermark"];
+    %orig(removeWatermark);
+}
+
+- (void)setDisableSave:(_Bool)arg1 {
+    BOOL forceSaveMedia = [[NSUserDefaults standardUserDefaults] boolForKey:@"force_save_media"];
+    if (forceSaveMedia) {
+        %orig(NO);
+    } else {
+        %orig(arg1);
+    }
+}
+
+%end
+
+%ctor {
+    // 初始化设置默认值
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    if (![defaults objectForKey:@"remove_tab_shopping"]) {
+        [defaults setBool:NO forKey:@"remove_tab_shopping"];
+    }
+    if (![defaults objectForKey:@"remove_tab_post"]) {
+        [defaults setBool:NO forKey:@"remove_tab_post"];
+    }
+    if (![defaults objectForKey:@"remove_save_watermark"]) {
+        [defaults setBool:NO forKey:@"remove_save_watermark"];
+    }
+    if (![defaults objectForKey:@"force_save_media"]) {
+        [defaults setBool:NO forKey:@"force_save_media"];
+    }
+    [defaults synchronize];
+}
