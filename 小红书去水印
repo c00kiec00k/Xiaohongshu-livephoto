@@ -1,5 +1,17 @@
 #import <UIKit/UIKit.h>
 
+// 获取当前窗口的辅助方法
+static UIWindow* GetKeyWindow() {
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene* windowScene in [UIApplication sharedApplication].connectedScenes) {
+            if (windowScene.activationState == UISceneActivationStateForegroundActive) {
+                return windowScene.windows.firstObject;
+            }
+        }
+    }
+    return [UIApplication sharedApplication].windows.firstObject;
+}
+
 // 悬浮窗按钮
 @interface FloatingButton : UIButton
 @property (nonatomic, assign) CGPoint lastLocation;
@@ -25,7 +37,7 @@
 @end
 
 // 设置面板
-@interface SettingsPanel : UIView <UITableViewDelegate, UITableViewDelegate>
+@interface SettingsPanel : UIView <UITableViewDataSource, UITableViewDelegate>
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) NSArray *options;
 @end
@@ -40,7 +52,7 @@
         
         // 设置面板大小
         self.frame = CGRectMake(0, 0, 300, 400);
-        self.center = [UIApplication sharedApplication].keyWindow.center;
+        self.center = GetKeyWindow().center;
         
         // 标题
         UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 10, 200, 20)];
@@ -136,7 +148,9 @@
     // 创建悬浮按钮
     FloatingButton *floatingButton = [FloatingButton buttonWithType:UIButtonTypeCustom];
     floatingButton.frame = CGRectMake(0, 0, 40, 40);
-    floatingButton.center = [UIScreen mainScreen].bounds.size.width / 2;
+    CGFloat centerX = [UIScreen mainScreen].bounds.size.width / 2;
+    CGFloat centerY = [UIScreen mainScreen].bounds.size.height / 2;
+    floatingButton.center = CGPointMake(centerX, centerY);
     [floatingButton setTitle:@"logo" forState:UIControlStateNormal];
     floatingButton.backgroundColor = [UIColor colorWithWhite:0 alpha:0.7];
     floatingButton.layer.cornerRadius = 20;
@@ -149,22 +163,22 @@
     UITapGestureRecognizer *tripleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(toggleFloatingButton:)];
     tripleTap.numberOfTouchesRequired = 3;
     tripleTap.numberOfTapsRequired = 2;
-    [[UIApplication sharedApplication].keyWindow addGestureRecognizer:tripleTap];
+    [GetKeyWindow() addGestureRecognizer:tripleTap];
     
-    [[UIApplication sharedApplication].keyWindow addSubview:floatingButton];
+    [GetKeyWindow() addSubview:floatingButton];
 }
 
 %new
 - (void)showSettings:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state == UIGestureRecognizerStateBegan) {
         SettingsPanel *panel = [[SettingsPanel alloc] init];
-        [[UIApplication sharedApplication].keyWindow addSubview:panel];
+        [GetKeyWindow() addSubview:panel];
     }
 }
 
 %new
 - (void)toggleFloatingButton:(UITapGestureRecognizer *)gesture {
-    FloatingButton *button = [UIApplication sharedApplication].keyWindow.subviews.lastObject;
+    FloatingButton *button = GetKeyWindow().subviews.lastObject;
     if ([button isKindOfClass:[FloatingButton class]]) {
         button.hidden = !button.hidden;
     }
