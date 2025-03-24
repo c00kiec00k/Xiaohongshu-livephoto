@@ -10,6 +10,8 @@
 
 // 前向声明
 @interface XHSAppDelegate : UIResponder <UIApplicationDelegate>
+- (void)setupFloatingButton;
+- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event;
 @end
 
 @interface XYTabBar : UIView
@@ -59,7 +61,6 @@ static UIWindow* getKeyWindow() {
     }
     return keyWindow;
 }
-
 // FloatingButton 实现
 @implementation FloatingButton
 
@@ -221,6 +222,22 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
+// Hook实现
+%hook UIResponder
+
+- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event {
+    %orig;
+    if (motion == UIEventSubtypeMotionShake) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            isButtonVisible = !isButtonVisible;
+            [UIView animateWithDuration:0.3 animations:^{
+                floatingButton.alpha = isButtonVisible ? 1.0 : 0.0;
+            }];
+        });
+    }
+}
+
+%end
 
 %hook XHSAppDelegate
 
@@ -255,29 +272,6 @@ static UIWindow* getKeyWindow() {
     if (window) {
         [window addSubview:floatingButton];
         floatingButton.alpha = 1.0; // 确保初始状态可见
-    }
-}
-
-// 添加摇动检测方法
-- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event {
-    %orig;
-    if (motion == UIEventSubtypeMotionShake) {
-        isButtonVisible = !isButtonVisible;
-        [UIView animateWithDuration:0.3 animations:^{
-            floatingButton.alpha = isButtonVisible ? 1.0 : 0.0;
-        }];
-    }
-}
-
-%end
-
-// 为了确保摇动检测在所有界面都生效
-%hook UIViewController
-
-- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event {
-    %orig;
-    if (motion == UIEventSubtypeMotionShake) {
-        [[UIApplication sharedApplication].delegate motionBegan:motion withEvent:event];
     }
 }
 
@@ -337,3 +331,11 @@ static UIWindow* getKeyWindow() {
 }
 
 %end
+
+// 构造函数
+%ctor {
+    @autoreleasepool {
+        NSLog(@"[XhsPlus] Tweak已加载");
+    }
+}
+
