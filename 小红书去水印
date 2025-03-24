@@ -42,14 +42,20 @@ static BOOL isButtonVisible = YES;
 static UIWindow* getKeyWindow() {
     UIWindow *keyWindow = nil;
     if (@available(iOS 13.0, *)) {
-        for (UIWindowScene *scene in UIApplication.sharedApplication.connectedScenes) {
-            if (scene.activationState == UISceneActivationStateForegroundActive) {
-                keyWindow = scene.windows.firstObject;
-                break;
+        NSSet *scenes = [[UIApplication sharedApplication] connectedScenes];
+        for (UIScene *scene in scenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                for (UIWindow *window in windowScene.windows) {
+                    if (window.isKeyWindow) {
+                        keyWindow = window;
+                        break;
+                    }
+                }
             }
         }
     } else {
-        keyWindow = [UIApplication sharedApplication].keyWindow;
+        keyWindow = [[UIApplication sharedApplication] windows].firstObject;
     }
     return keyWindow;
 }
