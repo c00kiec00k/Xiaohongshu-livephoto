@@ -1,18 +1,16 @@
-/* 
- * Tweak Name: XhsPlus
- * Target App: com.xingin.discover
+/**
+ * XhsPlus - 小红书增强插件
+ * 适用环境：iPhone 12, iOS 16.0.2, 未越狱
+ * 开发工具：MonkeyDev
  */
 
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
-#import <substrate.h>
 
-// 前向声明小红书的类
+#pragma mark - 类声明
+
+// 小红书原生类声明
 @interface XHSAppDelegate : UIResponder <UIApplicationDelegate>
-@end
-
-@interface XHSAppDelegate (XhsPlus)
-- (void)handleMultiTap:(UITapGestureRecognizer *)gesture;
 @end
 
 @interface XYTabBar : UIView
@@ -24,11 +22,14 @@
 - (void)setDisableSave:(_Bool)arg1;
 @end
 
-// 自定义类声明
+#pragma mark - 自定义类声明
+
+// 悬浮按钮
 @interface FloatingButton : UIButton
 - (void)setBase64Image:(NSString *)base64String;
 @end
 
+// 控制面板
 @interface ControlPanel : UIView {
     NSMutableArray *_sectionViews;
     UIScrollView *_scrollView;
@@ -36,12 +37,15 @@
 - (void)setupUI;
 @end
 
-// 全局变量
+#pragma mark - 全局变量
+
 static FloatingButton *floatingButton;
 static ControlPanel *controlPanel;
 static BOOL isButtonVisible = YES;
 
-// 获取keyWindow的辅助方法
+#pragma mark - 工具方法
+
+// 获取当前的KeyWindow
 static UIWindow* getKeyWindow() {
     UIWindow *keyWindow = nil;
     if (@available(iOS 13.0, *)) {
@@ -56,21 +60,44 @@ static UIWindow* getKeyWindow() {
     }
     return keyWindow;
 }
-// FloatingButton 实现
+
+// Method Swizzling 辅助方法
+static void swizzleMethod(Class class, SEL originalSelector, SEL swizzledSelector) {
+    Method originalMethod = class_getInstanceMethod(class, originalSelector);
+    Method swizzledMethod = class_getInstanceMethod(class, swizzledSelector);
+    
+    BOOL didAddMethod = class_addMethod(class, originalSelector,
+                                      method_getImplementation(swizzledMethod),
+                                      method_getTypeEncoding(swizzledMethod));
+    
+    if (didAddMethod) {
+        class_replaceMethod(class, swizzledSelector,
+                          method_getImplementation(originalMethod),
+                          method_getTypeEncoding(originalMethod));
+    } else {
+        method_exchangeImplementations(originalMethod, swizzledMethod);
+    }
+}
+
+#pragma mark - FloatingButton 实现
+
 @implementation FloatingButton
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
+        // 基本设置
         self.backgroundColor = [UIColor colorWithRed:0.4 green:0.8 blue:1.0 alpha:0.8];
         self.layer.cornerRadius = frame.size.width / 2;
         self.layer.masksToBounds = YES;
         [self setTitle:@"logo" forState:UIControlStateNormal];
         self.titleLabel.font = [UIFont systemFontOfSize:12];
         
+        // 添加拖动手势
         UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
         [self addGestureRecognizer:panGesture];
         
+        // 添加长按手势
         UILongPressGestureRecognizer *longPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
         longPressGesture.minimumPressDuration = 0.5;
         [self addGestureRecognizer:longPressGesture];
@@ -78,10 +105,12 @@ static UIWindow* getKeyWindow() {
     return self;
 }
 
+// 处理拖动手势
 - (void)handlePan:(UIPanGestureRecognizer *)gesture {
     CGPoint translation = [gesture translationInView:self.superview];
     CGPoint newCenter = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
     
+    // 限制按钮在屏幕范围内
     newCenter.x = MAX(self.frame.size.width / 2, MIN(newCenter.x, self.superview.frame.size.width - self.frame.size.width / 2));
     newCenter.y = MAX(self.frame.size.height / 2, MIN(newCenter.y, self.superview.frame.size.height - self.frame.size.height / 2));
     
@@ -89,12 +118,14 @@ static UIWindow* getKeyWindow() {
     [gesture setTranslation:CGPointZero inView:self.superview];
 }
 
+// 处理长按手势
 - (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
     if (gesture.state == UIGestureRecognizerStateBegan) {
         [self showControlPanel];
     }
 }
 
+// 显示控制面板
 - (void)showControlPanel {
     if (!controlPanel) {
         CGFloat panelWidth = [UIScreen mainScreen].bounds.size.width * 0.8;
@@ -106,6 +137,7 @@ static UIWindow* getKeyWindow() {
         controlPanel = [[ControlPanel alloc] initWithFrame:frame];
     }
     
+    // 添加动画效果
     controlPanel.alpha = 0;
     controlPanel.transform = CGAffineTransformMakeScale(0.1, 0.1);
     [getKeyWindow() addSubview:controlPanel];
@@ -116,6 +148,7 @@ static UIWindow* getKeyWindow() {
     }];
 }
 
+// 设置Base64图片
 - (void)setBase64Image:(NSString *)base64String {
     if (base64String) {
         NSData *imageData = [[NSData alloc] initWithBase64EncodedString:base64String options:NSDataBase64DecodingIgnoreUnknownCharacters];
@@ -131,12 +164,14 @@ static UIWindow* getKeyWindow() {
 
 @end
 
-// ControlPanel 实现
+#pragma mark - ControlPanel 实现
+
 @implementation ControlPanel
 
 - (instancetype)initWithFrame:(CGRect)frame {
     self = [super initWithFrame:frame];
     if (self) {
+        // 基本设置
         self.backgroundColor = [UIColor whiteColor];
         self.layer.cornerRadius = 15;
         self.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -151,6 +186,7 @@ static UIWindow* getKeyWindow() {
     return self;
 }
 
+// 设置UI界面
 - (void)setupUI {
     // 标题
     UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 10, self.frame.size.width - 40, 30)];
@@ -169,7 +205,7 @@ static UIWindow* getKeyWindow() {
     [closeButton addTarget:self action:@selector(closePanel) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:closeButton];
     
-    // 设置列表
+    // 设置选项
     NSArray *options = @[
         @{@"title": @"去除底栏购物", @"key": @"remove_tab_shopping"},
         @{@"title": @"去除底栏加号", @"key": @"remove_tab_post"},
@@ -181,15 +217,18 @@ static UIWindow* getKeyWindow() {
     CGFloat itemHeight = 40;
     CGFloat padding = 10;
     
+    // 创建选项列表
     for (NSInteger i = 0; i < [options count]; i++) {
         NSDictionary *option = options[i];
         
+        // 选项标签
         UILabel *itemLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, yOffset, self.frame.size.width - 80, itemHeight)];
         itemLabel.text = option[@"title"];
         itemLabel.textColor = [UIColor darkGrayColor];
         itemLabel.font = [UIFont systemFontOfSize:14];
         [self addSubview:itemLabel];
         
+        // 开关控件
         UISwitch *switchView = [[UISwitch alloc] initWithFrame:CGRectMake(self.frame.size.width - 70, yOffset + 5, 51, 31)];
         switchView.on = [[NSUserDefaults standardUserDefaults] boolForKey:option[@"key"]];
         [switchView addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
@@ -200,6 +239,7 @@ static UIWindow* getKeyWindow() {
     }
 }
 
+// 处理开关状态变化
 - (void)switchChanged:(UISwitch *)sender {
     NSArray *keys = @[@"remove_tab_shopping", @"remove_tab_post", @"remove_save_watermark", @"force_save_media"];
     NSString *key = keys[sender.tag];
@@ -207,6 +247,7 @@ static UIWindow* getKeyWindow() {
     [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
+// 关闭面板
 - (void)closePanel {
     [UIView animateWithDuration:0.3 animations:^{
         self.alpha = 0;
@@ -217,13 +258,26 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
-// Hook AppDelegate
-%hook XHSAppDelegate
 
-static BOOL (*_orig_applicationDidFinishLaunching)(XHSAppDelegate*, SEL, UIApplication*, NSDictionary*);
-static BOOL _new_applicationDidFinishLaunching(XHSAppDelegate* self, SEL _cmd, UIApplication* application, NSDictionary* launchOptions) {
-    BOOL result = _orig_applicationDidFinishLaunching(self, _cmd, application, launchOptions);
+#pragma mark - Hook实现
+
+// AppDelegate Hook
+@implementation XHSAppDelegate (XhsPlus)
+
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Class class = [self class];
+        swizzleMethod(class,
+                     @selector(application:didFinishLaunchingWithOptions:),
+                     @selector(xhsplus_application:didFinishLaunchingWithOptions:));
+    });
+}
+
+- (BOOL)xhsplus_application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    BOOL result = [self xhsplus_application:application didFinishLaunchingWithOptions:launchOptions];
     
+    // 延迟初始化UI，确保window已经创建
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         // 创建悬浮按钮
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
@@ -247,7 +301,7 @@ static BOOL _new_applicationDidFinishLaunching(XHSAppDelegate* self, SEL _cmd, U
     return result;
 }
 
-%new
+// 处理三指双击手势
 - (void)handleMultiTap:(UITapGestureRecognizer *)gesture {
     isButtonVisible = !isButtonVisible;
     [UIView animateWithDuration:0.3 animations:^{
@@ -255,41 +309,43 @@ static BOOL _new_applicationDidFinishLaunching(XHSAppDelegate* self, SEL _cmd, U
     }];
 }
 
+@end
+
+// 底部标签栏Hook
+@implementation XYTabBar (XhsPlus)
+
 + (void)load {
-    MSHookMessageEx(
-        objc_getClass("XHSAppDelegate"),
-        @selector(application:didFinishLaunchingWithOptions:),
-        (IMP)&_new_applicationDidFinishLaunching,
-        (IMP*)&_orig_applicationDidFinishLaunching
-    );
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Class class = [self class];
+        swizzleMethod(class,
+                     @selector(layoutSubviews),
+                     @selector(xhsplus_layoutSubviews));
+    });
 }
 
-%end
-
-// Hook底部标签栏
-%hook XYTabBar
-
-- (void)layoutSubviews {
-    %orig;
+- (void)xhsplus_layoutSubviews {
+    [self xhsplus_layoutSubviews];
     
-    NSArray *views = self.subviews;
-    if (views.count >= 3) {
+    // 处理底部标签栏
+    if (self.subviews.count >= 3) {
         BOOL removeShoppingTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_shopping"];
         BOOL removePostTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_post"];
         
         if (removeShoppingTab && removePostTab) {
-            [[views objectAtIndex:1] removeFromSuperview];
-            [[views objectAtIndex:1] removeFromSuperview];
+            [[self.subviews objectAtIndex:1] removeFromSuperview];
+            [[self.subviews objectAtIndex:1] removeFromSuperview];
         } else {
             if (removeShoppingTab) {
-                [[views objectAtIndex:1] removeFromSuperview];
+                [[self.subviews objectAtIndex:1] removeFromSuperview];
             }
             if (removePostTab) {
-                [[views objectAtIndex:2] removeFromSuperview];
+                [[self.subviews objectAtIndex:2] removeFromSuperview];
             }
         }
     }
 
+    // 重新布局剩余标签
     CGFloat tabWidth = CGRectGetWidth(self.bounds) / self.subviews.count;
     CGFloat xPosition = 0;
     
@@ -303,31 +359,36 @@ static BOOL _new_applicationDidFinishLaunching(XHSAppDelegate* self, SEL _cmd, U
     }
 }
 
-%end
+@end
 
-// Hook媒体保存配置
-%hook XYPHMediaSaveConfig
+// 媒体保存配置Hook
+@implementation XYPHMediaSaveConfig (XhsPlus)
 
-- (void)setDisableWatermark:(_Bool)arg1 {
-    BOOL removeWatermark = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_save_watermark"];
-    %orig(removeWatermark);
++ (void)load {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        Class class = [self class];
+        swizzleMethod(class,
+                     @selector(setDisableWatermark:),
+                     @selector(xhsplus_setDisableWatermark:));
+        swizzleMethod(class,
+                     @selector(setDisableSave:),
+                     @selector(xhsplus_setDisableSave:));
+    });
 }
 
-- (void)setDisableSave:(_Bool)arg1 {
+- (void)xhsplus_setDisableWatermark:(_Bool)arg1 {
+    BOOL removeWatermark = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_save_watermark"];
+    [self xhsplus_setDisableWatermark:removeWatermark];
+}
+
+- (void)xhsplus_setDisableSave:(_Bool)arg1 {
     BOOL forceSaveMedia = [[NSUserDefaults standardUserDefaults] boolForKey:@"force_save_media"];
     if (forceSaveMedia) {
-        %orig(NO);
+        [self xhsplus_setDisableSave:NO];
     } else {
-        %orig(arg1);
+        [self xhsplus_setDisableSave:arg1];
     }
 }
 
-%end
-
-// 构造函数
-%ctor {
-    @autoreleasepool {
-        // 在这里可以进行一些初始化操作
-        NSLog(@"[XhsPlus] Tweak已加载");
-    }
-}
+@end
