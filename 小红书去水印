@@ -1,5 +1,9 @@
 #import <UIKit/UIKit.h>
 
+@interface FloatingButton : UIButton
+@property (nonatomic, assign) CGPoint lastLocation;
+@end
+
 static FloatingButton *floatingBtn = nil;
 
 @interface XYTabBar : UIView
@@ -9,11 +13,6 @@ static FloatingButton *floatingBtn = nil;
 @interface XYPHMediaSaveConfig : NSObject
 - (void)setDisableWatermark:(_Bool)arg1;
 - (void)setDisableSave:(_Bool)arg1;
-@end
-
-// 悬浮窗按钮
-@interface FloatingButton : UIButton
-@property (nonatomic, assign) CGPoint lastLocation;
 @end
 
 @implementation FloatingButton
