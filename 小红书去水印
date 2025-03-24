@@ -227,33 +227,58 @@ static UIWindow* getKeyWindow() {
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     %orig;
     
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
-        CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
-        
-        floatingButton = [[FloatingButton alloc] initWithFrame:CGRectMake(
-            (screenWidth - 40) / 2,
-            (screenHeight - 40) / 2,
-            40,
-            40
-        )];
-        [getKeyWindow() addSubview:floatingButton];
-        
-        UITapGestureRecognizer *multiTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMultiTap:)];
-        multiTapGesture.numberOfTouchesRequired = 3;
-        multiTapGesture.numberOfTapsRequired = 2;
-        [getKeyWindow() addGestureRecognizer:multiTapGesture];
+    // 启用摇动检测
+    application.applicationSupportsShakeToEdit = YES;
+    
+    // 延迟创建悬浮按钮，确保window已经创建
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self setupFloatingButton];
     });
     
     return YES;
 }
 
 %new
-- (void)handleMultiTap:(UITapGestureRecognizer *)gesture {
-    isButtonVisible = !isButtonVisible;
-    [UIView animateWithDuration:0.3 animations:^{
-        floatingButton.alpha = isButtonVisible ? 1.0 : 0.0;
-    }];
+- (void)setupFloatingButton {
+    CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+    CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+    
+    floatingButton = [[FloatingButton alloc] initWithFrame:CGRectMake(
+        (screenWidth - 40) / 2,
+        (screenHeight - 40) / 2,
+        40,
+        40
+    )];
+    
+    // 确保添加到最前面的window
+    UIWindow *window = getKeyWindow();
+    if (window) {
+        [window addSubview:floatingButton];
+        floatingButton.alpha = 1.0; // 确保初始状态可见
+    }
+}
+
+// 添加摇动检测方法
+- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event {
+    %orig;
+    if (motion == UIEventSubtypeMotionShake) {
+        isButtonVisible = !isButtonVisible;
+        [UIView animateWithDuration:0.3 animations:^{
+            floatingButton.alpha = isButtonVisible ? 1.0 : 0.0;
+        }];
+    }
+}
+
+%end
+
+// 为了确保摇动检测在所有界面都生效
+%hook UIViewController
+
+- (void)motionBegan:(UIEventSubtype)motion withEvent:(UIEvent *)event {
+    %orig;
+    if (motion == UIEventSubtypeMotionShake) {
+        [[UIApplication sharedApplication].delegate motionBegan:motion withEvent:event];
+    }
 }
 
 %end
