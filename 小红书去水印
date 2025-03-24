@@ -5,7 +5,20 @@
 
 #import <UIKit/UIKit.h>
 
-// 前向声明
+// 前向声明小红书的类
+@interface XHSAppDelegate : UIResponder <UIApplicationDelegate>
+@end
+
+@interface XYTabBar : UIView
+@property (nonatomic, strong) NSArray *subviews;
+@end
+
+@interface XYPHMediaSaveConfig : NSObject
+- (void)setDisableWatermark:(_Bool)arg1;
+- (void)setDisableSave:(_Bool)arg1;
+@end
+
+// 自定义类声明
 @interface FloatingButton : UIButton
 - (void)setBase64Image:(NSString *)base64String;
 @end
@@ -112,7 +125,6 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
-
 // ControlPanel 实现
 @implementation ControlPanel
 
@@ -199,8 +211,8 @@ static UIWindow* getKeyWindow() {
 }
 
 @end
-
-%hook AppDelegate
+// Hook AppDelegate
+%hook XHSAppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     BOOL result = %orig;
@@ -251,19 +263,20 @@ static UIWindow* getKeyWindow() {
 - (void)layoutSubviews {
     %orig;
     
-    if (self.subviews.count >= 3) {
+    NSArray *views = self.subviews;
+    if (views.count >= 3) {
         BOOL removeShoppingTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_shopping"];
         BOOL removePostTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_post"];
         
         if (removeShoppingTab && removePostTab) {
-            [[self.subviews objectAtIndex:1] removeFromSuperview];
-            [[self.subviews objectAtIndex:1] removeFromSuperview];
+            [[views objectAtIndex:1] removeFromSuperview];
+            [[views objectAtIndex:1] removeFromSuperview];
         } else {
             if (removeShoppingTab) {
-                [[self.subviews objectAtIndex:1] removeFromSuperview];
+                [[views objectAtIndex:1] removeFromSuperview];
             }
             if (removePostTab) {
-                [[self.subviews objectAtIndex:2] removeFromSuperview];
+                [[views objectAtIndex:2] removeFromSuperview];
             }
         }
     }
