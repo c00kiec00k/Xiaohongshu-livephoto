@@ -1,0 +1,303 @@
+/* 
+ * Tweak Name: XhsPlus
+ * Target App: com.xingin.discover
+ */
+
+#import <UIKit/UIKit.h>
+
+// 前向声明
+@interface FloatingButton : UIButton
+- (void)setBase64Image:(NSString *)base64String;
+@end
+
+@interface ControlPanel : UIView {
+    NSMutableArray *_sectionViews;
+    UIScrollView *_scrollView;
+}
+- (void)setupUI;
+@end
+
+// 全局变量
+static FloatingButton *floatingButton;
+static ControlPanel *controlPanel;
+static BOOL isButtonVisible = YES;
+
+// 获取keyWindow的辅助方法
+static UIWindow* getKeyWindow() {
+    UIWindow *keyWindow = nil;
+    if (@available(iOS 13.0, *)) {
+        for (UIWindowScene *scene in UIApplication.sharedApplication.connectedScenes) {
+            if (scene.activationState == UISceneActivationStateForegroundActive) {
+                keyWindow = scene.windows.firstObject;
+                break;
+            }
+        }
+    } else {
+        keyWindow = [UIApplication sharedApplication].keyWindow;
+    }
+    return keyWindow;
+}
+
+// FloatingButton 实现
+@implementation FloatingButton
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor colorWithRed:0.4 green:0.8 blue:1.0 alpha:0.8];
+        self.layer.cornerRadius = frame.size.width / 2;
+        self.layer.masksToBounds = YES;
+        [self setTitle:@"logo" forState:UIControlStateNormal];
+        self.titleLabel.font = [UIFont systemFontOfSize:12];
+        
+        UIPanGestureRecognizer *panGesture = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handlePan:)];
+        [self addGestureRecognizer:panGesture];
+        
+        UILongPressGestureRecognizer *longPressGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleLongPress:)];
+        longPressGesture.minimumPressDuration = 0.5;
+        [self addGestureRecognizer:longPressGesture];
+    }
+    return self;
+}
+
+- (void)handlePan:(UIPanGestureRecognizer *)gesture {
+    CGPoint translation = [gesture translationInView:self.superview];
+    CGPoint newCenter = CGPointMake(self.center.x + translation.x, self.center.y + translation.y);
+    
+    newCenter.x = MAX(self.frame.size.width / 2, MIN(newCenter.x, self.superview.frame.size.width - self.frame.size.width / 2));
+    newCenter.y = MAX(self.frame.size.height / 2, MIN(newCenter.y, self.superview.frame.size.height - self.frame.size.height / 2));
+    
+    self.center = newCenter;
+    [gesture setTranslation:CGPointZero inView:self.superview];
+}
+
+- (void)handleLongPress:(UILongPressGestureRecognizer *)gesture {
+    if (gesture.state == UIGestureRecognizerStateBegan) {
+        [self showControlPanel];
+    }
+}
+
+- (void)showControlPanel {
+    if (!controlPanel) {
+        CGFloat panelWidth = [UIScreen mainScreen].bounds.size.width * 0.8;
+        CGFloat panelHeight = [UIScreen mainScreen].bounds.size.height * 0.4;
+        CGRect frame = CGRectMake(([UIScreen mainScreen].bounds.size.width - panelWidth) / 2,
+                                 ([UIScreen mainScreen].bounds.size.height - panelHeight) / 2,
+                                 panelWidth,
+                                 panelHeight);
+        controlPanel = [[ControlPanel alloc] initWithFrame:frame];
+    }
+    
+    controlPanel.alpha = 0;
+    controlPanel.transform = CGAffineTransformMakeScale(0.1, 0.1);
+    [getKeyWindow() addSubview:controlPanel];
+    
+    [UIView animateWithDuration:0.3 animations:^{
+        controlPanel.alpha = 1;
+        controlPanel.transform = CGAffineTransformIdentity;
+    }];
+}
+
+- (void)setBase64Image:(NSString *)base64String {
+    if (base64String) {
+        NSData *imageData = [[NSData alloc] initWithBase64EncodedString:base64String options:NSDataBase64DecodingIgnoreUnknownCharacters];
+        if (imageData) {
+            UIImage *image = [UIImage imageWithData:imageData];
+            if (image) {
+                [self setImage:image forState:UIControlStateNormal];
+                [self setTitle:@"" forState:UIControlStateNormal];
+            }
+        }
+    }
+}
+
+@end
+
+// ControlPanel 实现
+@implementation ControlPanel
+
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor whiteColor];
+        self.layer.cornerRadius = 15;
+        self.layer.shadowColor = [UIColor blackColor].CGColor;
+        self.layer.shadowOffset = CGSizeMake(0, 2);
+        self.layer.shadowOpacity = 0.3;
+        self.layer.shadowRadius = 4;
+        self.clipsToBounds = NO;
+        self.layer.masksToBounds = NO;
+        
+        [self setupUI];
+    }
+    return self;
+}
+
+- (void)setupUI {
+    // 标题
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 10, self.frame.size.width - 40, 30)];
+    titleLabel.text = @"@c00kiec00k";
+    titleLabel.textColor = [UIColor darkGrayColor];
+    titleLabel.font = [UIFont systemFontOfSize:10];
+    titleLabel.textAlignment = NSTextAlignmentLeft;
+    [self addSubview:titleLabel];
+    
+    // 关闭按钮
+    UIButton *closeButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    closeButton.frame = CGRectMake(self.frame.size.width - 40, 10, 30, 30);
+    [closeButton setTitle:@"×" forState:UIControlStateNormal];
+    [closeButton setTitleColor:[UIColor redColor] forState:UIControlStateNormal];
+    closeButton.titleLabel.font = [UIFont systemFontOfSize:12];
+    [closeButton addTarget:self action:@selector(closePanel) forControlEvents:UIControlEventTouchUpInside];
+    [self addSubview:closeButton];
+    
+    // 设置列表
+    NSArray *options = @[
+        @{@"title": @"去除底栏购物", @"key": @"remove_tab_shopping"},
+        @{@"title": @"去除底栏加号", @"key": @"remove_tab_post"},
+        @{@"title": @"去除保存水印", @"key": @"remove_save_watermark"},
+        @{@"title": @"强制保存媒体", @"key": @"force_save_media"}
+    ];
+    
+    CGFloat yOffset = 50;
+    CGFloat itemHeight = 40;
+    CGFloat padding = 10;
+    
+    for (NSInteger i = 0; i < [options count]; i++) {
+        NSDictionary *option = options[i];
+        
+        UILabel *itemLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, yOffset, self.frame.size.width - 80, itemHeight)];
+        itemLabel.text = option[@"title"];
+        itemLabel.textColor = [UIColor darkGrayColor];
+        itemLabel.font = [UIFont systemFontOfSize:14];
+        [self addSubview:itemLabel];
+        
+        UISwitch *switchView = [[UISwitch alloc] initWithFrame:CGRectMake(self.frame.size.width - 70, yOffset + 5, 51, 31)];
+        switchView.on = [[NSUserDefaults standardUserDefaults] boolForKey:option[@"key"]];
+        [switchView addTarget:self action:@selector(switchChanged:) forControlEvents:UIControlEventValueChanged];
+        switchView.tag = i;
+        [self addSubview:switchView];
+        
+        yOffset += itemHeight + padding;
+    }
+}
+
+- (void)switchChanged:(UISwitch *)sender {
+    NSArray *keys = @[@"remove_tab_shopping", @"remove_tab_post", @"remove_save_watermark", @"force_save_media"];
+    NSString *key = keys[sender.tag];
+    [[NSUserDefaults standardUserDefaults] setBool:sender.isOn forKey:key];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (void)closePanel {
+    [UIView animateWithDuration:0.3 animations:^{
+        self.alpha = 0;
+        self.transform = CGAffineTransformMakeScale(0.1, 0.1);
+    } completion:^(BOOL finished) {
+        [self removeFromSuperview];
+    }];
+}
+
+@end
+
+%hook AppDelegate
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    BOOL result = %orig;
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self setupFloatingButton];
+        [self setupMultiTapGesture];
+    });
+    
+    return result;
+}
+
+%new
+- (void)setupFloatingButton {
+    CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;
+    CGFloat screenHeight = [UIScreen mainScreen].bounds.size.height;
+    
+    floatingButton = [[FloatingButton alloc] initWithFrame:CGRectMake(
+        (screenWidth - 40) / 2,
+        (screenHeight - 40) / 2,
+        40,
+        40
+    )];
+    [getKeyWindow() addSubview:floatingButton];
+}
+
+%new
+- (void)setupMultiTapGesture {
+    UITapGestureRecognizer *multiTapGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleMultiTap:)];
+    multiTapGesture.numberOfTouchesRequired = 3;
+    multiTapGesture.numberOfTapsRequired = 2;
+    [getKeyWindow() addGestureRecognizer:multiTapGesture];
+}
+
+%new
+- (void)handleMultiTap:(UITapGestureRecognizer *)gesture {
+    isButtonVisible = !isButtonVisible;
+    [UIView animateWithDuration:0.3 animations:^{
+        floatingButton.alpha = isButtonVisible ? 1.0 : 0.0;
+    }];
+}
+
+%end
+
+// Hook底部标签栏
+%hook XYTabBar
+
+- (void)layoutSubviews {
+    %orig;
+    
+    if (self.subviews.count >= 3) {
+        BOOL removeShoppingTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_shopping"];
+        BOOL removePostTab = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_tab_post"];
+        
+        if (removeShoppingTab && removePostTab) {
+            [[self.subviews objectAtIndex:1] removeFromSuperview];
+            [[self.subviews objectAtIndex:1] removeFromSuperview];
+        } else {
+            if (removeShoppingTab) {
+                [[self.subviews objectAtIndex:1] removeFromSuperview];
+            }
+            if (removePostTab) {
+                [[self.subviews objectAtIndex:2] removeFromSuperview];
+            }
+        }
+    }
+
+    CGFloat tabWidth = CGRectGetWidth(self.bounds) / self.subviews.count;
+    CGFloat xPosition = 0;
+    
+    for (UIView *subview in self.subviews) {
+        CGRect frame = subview.frame;
+        frame.origin.x = xPosition;
+        frame.size.width = tabWidth;
+        subview.frame = frame;
+        
+        xPosition += tabWidth;
+    }
+}
+
+%end
+
+// Hook媒体保存配置
+%hook XYPHMediaSaveConfig
+
+- (void)setDisableWatermark:(_Bool)arg1 {
+    BOOL removeWatermark = [[NSUserDefaults standardUserDefaults] boolForKey:@"remove_save_watermark"];
+    %orig(removeWatermark);
+}
+
+- (void)setDisableSave:(_Bool)arg1 {
+    BOOL forceSaveMedia = [[NSUserDefaults standardUserDefaults] boolForKey:@"force_save_media"];
+    if (forceSaveMedia) {
+        %orig(NO);
+    } else {
+        %orig(arg1);
+    }
+}
+
+%end
