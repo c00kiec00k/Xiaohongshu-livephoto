@@ -128,7 +128,7 @@ static UIWindow* getKeyWindow() {
             UIImage *image = [UIImage imageWithData:imageData];
             if (image) {
                 [self setImage:image forState:UIControlStateNormal];
-                [self setTitle:@"" forState:UIControlStateNormal];
+                [self setTitle:@"LOGO" forState:UIControlStateNormal];
             }
         }
     }
